@@ -2,11 +2,14 @@ import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
-from torch.utils.tensorboard import SummaryWriter
+
+from torch.distributions import Categorical
+
+
 class PolicyNet(nn.Module):
-    def __init__(self,n_states,n_hiddens,n_actions):
+    def __init__(self,obs_shape,n_hiddens,n_actions):
         super(PolicyNet, self).__init__()
-        self.fc1 = nn.Linear(n_states, n_hiddens)
+        self.fc1 = nn.Linear(obs_shape, n_hiddens)
         self.fc2 = nn.Linear(n_hiddens,n_actions)
 
     def forward(self, x):
@@ -48,20 +51,22 @@ class PPO:
         self.eps = eps  # PPO中截断范围的参数
         self.device = device
 
-    def take_action(self, state):
+    def take_action(self, obs, board_size):
         # 维度变换 [n_state]-->tensor[1,n_states]
-        state = torch.tensor(state[np.newaxis, :]).to(self.device)
-        # 当前状态下，每个动作的概率分布 [1,n_states]
-        probs = self.actor(state)
-        # 创建以probs为标准的概率分布
-        action_list = torch.distributions.Categorical(probs)
+        obs = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
+
+        action_probs = self.actor(obs)
+
+        action_dist = Categorical(action_probs)
         # 依据其概率随机挑选一个动作
-        action = action_list.sample().item()
-        return action
+        action = action_dist.sample()
+        row = action.item() // board_size
+        col = action.item() % board_size
+        return (row,col),action_dist.log_prob(action)
 
     def learn(self, transition_dict):
         # 提取数据集
-        writer = SummaryWriter('logs')
+
         states = torch.tensor(transition_dict['states'], dtype=torch.float).to(self.device)
         actions = torch.tensor(transition_dict['actions']).to(self.device).view(-1, 1)
         rewards = torch.tensor(transition_dict['rewards'], dtype=torch.float).to(self.device).view(-1, 1)
@@ -120,4 +125,3 @@ class PPO:
             # 梯度更新
             self.actor_optimizer.step()
             self.critic_optimizer.step()
-            writer.add_scalar('Training/Loss', loss, global_step=i)

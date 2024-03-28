@@ -43,6 +43,9 @@ class FiveChessGameEnv(gym.Env):
         return self.board
 
     def step(self, action):
+        #step的返回值 next_observation - 二维数组表示棋盘状态
+        #reward表示本轮次的step的reward
+        #done {}
         row,col = action
         action_reward = self.click_judge(row,col)
         if action_reward == -1:
@@ -57,7 +60,7 @@ class FiveChessGameEnv(gym.Env):
             reward = 0
             done = False
         next_observation = self.board.copy()
-        return next_observation, reward, done,{}
+        return next_observation, reward, done
 
 
     def draw_board(self):
